@@ -92,7 +92,7 @@ func (g *generation) requestEnded() {
 
 func (g *generation) closeIdle() {
 	g.transport.CloseIdleConnections()
-    // an HTTP/2 stream leaves its connection a moment after its body ends.
+	// an HTTP/2 stream leaves its connection a moment after its body ends.
 	time.AfterFunc(time.Second, g.transport.CloseIdleConnections)
 }
 
