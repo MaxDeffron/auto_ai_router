@@ -247,6 +247,7 @@ func main() {
 		IdleConnTimeout:              cfg.Server.IdleConnTimeout,
 		HTTP2IdlePingTimeout:         cfg.Server.HTTP2IdlePingTimeout,
 		HTTP2PingTimeout:             cfg.Server.HTTP2PingTimeout,
+		MaxConnectionLifetime:        cfg.Server.MaxConnectionLifetime,
 		Metrics:                      metrics,
 		MasterKey:                    cfg.Server.MasterKey,
 		RateLimiter:                  rateLimiter,

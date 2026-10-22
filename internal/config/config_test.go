@@ -1839,6 +1839,52 @@ monitoring:
 	assert.Equal(t, 5, cfg.Server.MaxProviderRetries, "Custom MaxProviderRetries should be 5")
 }
 
+func TestLoad_MaxConnectionLifetime(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"unset keeps connections while reused", "", 0, false},
+		{"duration", "  max_connection_lifetime: 10m\n", 10 * time.Minute, false},
+		{"negative", "  max_connection_lifetime: -1m\n", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configPath := filepath.Join(t.TempDir(), "config.yaml")
+			configContent := `
+server:
+  port: 8080
+  max_body_size_mb: 10
+  request_timeout: 30s
+  master_key: "sk-test"
+` + tt.line + `
+fail2ban:
+  max_attempts: 3
+  ban_duration: permanent
+  error_codes: [401]
+
+credentials:
+  - name: "test"
+    type: "openai"
+    api_key: "sk-test"
+    base_url: "https://api.openai.com"
+    rpm: 10
+`
+			require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+			cfg, err := Load(configPath)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid max_connection_lifetime")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Server.MaxConnectionLifetime)
+		})
+	}
+}
+
 func TestLoad_SessionStickyDefaults(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
