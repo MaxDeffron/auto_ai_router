@@ -614,6 +614,7 @@ type ServerConfig struct {
 	IdleConnTimeout            time.Duration         `yaml:"idle_conn_timeout"`
 	HTTP2IdlePingTimeout       time.Duration         `yaml:"http2_idle_ping_timeout"`           // How long a provider HTTP/2 connection may go without any frame before a liveness PING is sent (default: 15s; a negative duration, e.g. -1s, disables the check — either this or http2_ping_timeout alone turns it off)
 	HTTP2PingTimeout           time.Duration         `yaml:"http2_ping_timeout"`                // How long to wait for a liveness PING to be acked before closing the connection (default: 10s; a negative duration, e.g. -1s, disables the check — same as http2_idle_ping_timeout, either field alone turns it off)
+	MaxConnectionLifetime      time.Duration         `yaml:"max_connection_lifetime"`           // How long a provider connection takes new requests; it closes once its last request ends (default: 0, reused for as long as requests come)
 	ReadTimeout                time.Duration         `yaml:"-"`                                 // HTTP server read timeout (equals request_timeout, not configurable via YAML)
 	WriteTimeout               time.Duration         `yaml:"write_timeout"`                     // HTTP server write timeout (default: 60s)
 	IdleTimeout                time.Duration         `yaml:"idle_timeout"`                      // HTTP server idle timeout (default: 2*write_timeout)
@@ -719,6 +720,7 @@ func (s *ServerConfig) UnmarshalYAML(value *yaml.Node) error {
 		IdleConnTimeout            string                `yaml:"idle_conn_timeout"`
 		HTTP2IdlePingTimeout       string                `yaml:"http2_idle_ping_timeout"`
 		HTTP2PingTimeout           string                `yaml:"http2_ping_timeout"`
+		MaxConnectionLifetime      string                `yaml:"max_connection_lifetime"`
 		WriteTimeout               string                `yaml:"write_timeout"`
 		IdleTimeout                string                `yaml:"idle_timeout"`
 		MaxProviderRetries         string                `yaml:"max_provider_retries"`
@@ -780,6 +782,9 @@ func (s *ServerConfig) UnmarshalYAML(value *yaml.Node) error {
 		return err
 	}
 	if s.HTTP2PingTimeout, err = parseField(temp.HTTP2PingTimeout, 10*time.Second, time.ParseDuration, "http2_ping_timeout"); err != nil {
+		return err
+	}
+	if s.MaxConnectionLifetime, err = parseField(temp.MaxConnectionLifetime, 0, time.ParseDuration, "max_connection_lifetime"); err != nil {
 		return err
 	}
 	if s.WriteTimeout, err = parseField(temp.WriteTimeout, 60*time.Second, time.ParseDuration, "write_timeout"); err != nil {
@@ -2187,6 +2192,9 @@ func (c *Config) Validate() error {
 	// Validate MaxFallbackAttempts (0 = use default of 5)
 	if c.Server.MaxFallbackAttempts < 0 {
 		return fmt.Errorf("invalid max_fallback_attempts: %d (must be >= 0)", c.Server.MaxFallbackAttempts)
+	}
+	if c.Server.MaxConnectionLifetime < 0 {
+		return fmt.Errorf("invalid max_connection_lifetime: %s (must be >= 0)", c.Server.MaxConnectionLifetime)
 	}
 	if c.Server.SessionStickyTTL < 0 {
 		return fmt.Errorf("invalid session_sticky_ttl_minutes: %d (must be >= 0)", c.Server.SessionStickyTTL)
