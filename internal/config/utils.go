@@ -100,6 +100,8 @@ func PrintConfig(logger *slog.Logger, cfg *Config) {
 		"read_timeout", cfg.Server.ReadTimeout.String(),
 		"write_timeout", cfg.Server.WriteTimeout.String(),
 		"idle_timeout", cfg.Server.IdleTimeout.String(),
+		"shutdown_delay", cfg.Server.ShutdownDelay.String(),
+		"shutdown_timeout", cfg.Server.ShutdownTimeout.String(),
 		"logging_level", cfg.Server.LoggingLevel,
 		"stdout_logs_enabled", cfg.Server.StdoutLogsEnabled,
 		"credential_name_as_team_id", cfg.Server.CredentialNameAsTeamID,
