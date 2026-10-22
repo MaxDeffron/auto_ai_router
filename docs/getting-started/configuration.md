@@ -111,6 +111,8 @@ litellm_db:
 | `request_timeout`            | duration | 60s         | Request timeout                                                                                       |
 | `write_timeout`              | duration | 60s         | HTTP server write timeout                                                                             |
 | `idle_timeout`               | duration | 2m          | HTTP server idle timeout (default: 2 * write_timeout)                                                 |
+| `shutdown_delay`             | duration | 5s          | After SIGTERM: how long the router keeps serving while not ready, before it stops (see below)         |
+| `shutdown_timeout`           | duration | 30s         | Then: how long in-flight requests get to finish before the process exits and cuts the rest            |
 | `idle_conn_timeout`          | duration | 120s        | Idle connection timeout for keep-alive connections                                                    |
 | `max_idle_conns`             | int      | 200         | Maximum idle connections                                                                              |
 | `max_idle_conns_per_host`    | int      | 20          | Maximum idle connections per host                                                                     |
@@ -135,6 +137,8 @@ When PostgreSQL or Kafka spend logging is enabled, every routed model must have 
 `tiktoken_enabled` controls the local prompt/completion token estimator used as a fallback for streaming responses when a provider doesn't report usage (e.g. the stream is cut before the final usage chunk, or the provider omits token counts entirely), and for budget-reservation cost estimates ahead of the request. Two different costs apply while it's on: the **prompt-token estimate and the final completion-token BPE count are lazy** — computed only if a stream actually finishes without provider-reported usage — so they're free for providers that do report usage. However, **per-chunk delta-text accumulation runs on every streaming chunk of every stream** while this flag is on, regardless of whether the provider ultimately reports usage, since the accumulator has to keep pace with the stream in case it's needed at the end.
 
 Set to `false` to skip local estimation entirely if all your configured providers always report usage and you'd rather not carry any tiktoken-related per-chunk cost. This has three effects, not just spend logging: spend logs show `0` prompt/completion tokens (instead of an estimate) for streaming requests where a provider omits usage; the streaming-fallback total that feeds `rateLimiter.ConsumeTokens`/`ConsumeModelTokens` is zeroed the same way; and budget-reservation cost estimates (`server.litellm_db.enforce_budget_reservation`) undercount, reflecting only the completion-token portion — reservation itself still runs, it just can't account for prompt-token cost without local tokenization.
+
+On SIGTERM the router reports not ready, keeps serving for `shutdown_delay` so that the load balancer stops sending it new requests, then stops accepting and gives the requests still in flight `shutdown_timeout` to finish; whatever is still running then is cut. To restart without cutting requests, set `shutdown_timeout` to the longest a request may run (e.g. your ingress route timeout), and give the process at least `shutdown_delay` + `shutdown_timeout` to stop (Kubernetes: `terminationGracePeriodSeconds`), or it is killed first.
 
 ## Fail2Ban Parameters
 

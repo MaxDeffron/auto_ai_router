@@ -1504,6 +1504,43 @@ credentials:
 	}
 }
 
+func TestServerConfig_ShutdownTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		yamlLine string
+		expected time.Duration
+	}{
+		{name: "explicit", yamlLine: "  shutdown_timeout: 960s\n", expected: 960 * time.Second},
+		{name: "default when omitted", yamlLine: "", expected: DefaultShutdownTimeout},
+		{name: "non-positive falls back to default", yamlLine: "  shutdown_timeout: 0s\n", expected: DefaultShutdownTimeout},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.yaml")
+
+			configContent := `
+server:
+  port: 8080
+  max_body_size_mb: 10
+  master_key: "sk-test"
+` + tt.yamlLine + `
+credentials:
+  - name: "test"
+    type: "openai"
+    api_key: "sk-test"
+    base_url: "https://api.openai.com"
+`
+			require.NoError(t, os.WriteFile(configPath, []byte(configContent), 0644))
+
+			cfg, err := Load(configPath)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, cfg.Server.ShutdownTimeout)
+		})
+	}
+}
+
 func TestRedisConfig_BalancerKeyPrefix(t *testing.T) {
 	t.Setenv("TEST_BALANCER_PREFIX", "env-balancer:")
 	tests := []struct {

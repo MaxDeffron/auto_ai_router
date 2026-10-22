@@ -27,6 +27,9 @@ const FallbackPriorityGroup = 999
 // DefaultModelPricesSyncInterval is how often model prices are re-fetched from model_prices_link.
 const DefaultModelPricesSyncInterval = 5 * time.Minute
 
+// DefaultShutdownTimeout is how long a stopping server waits for in-flight requests before it exits.
+const DefaultShutdownTimeout = 30 * time.Second
+
 var DefaultErrorCodes = []int{429}
 
 // ProviderType represents the type of AI provider
@@ -625,6 +628,7 @@ type ServerConfig struct {
 	ModelPricesLink            string                `yaml:"model_prices_link,omitempty"`       // URL or file path to model prices JSON - supports os.environ/VAR_NAME
 	ModelPricesSyncInterval    time.Duration         `yaml:"model_prices_sync_interval"`        // How often model prices are re-fetched from model_prices_link (default: 5m)
 	ShutdownDelay              time.Duration         `yaml:"shutdown_delay"`                    // Delay between readiness=false and server.Shutdown (default: 5s)
+	ShutdownTimeout            time.Duration         `yaml:"shutdown_timeout"`                  // How long server.Shutdown waits for in-flight requests before the process exits and cuts the rest (default: 30s)
 	DrainUpstreamOnAbort       bool                  `yaml:"drain_upstream_on_abort"`           // When true, keep reading upstream after client disconnect to capture real usage chunk (default: false — estimate from delta text)
 	TiktokenEnabled            bool                  `yaml:"tiktoken_enabled"`                  // Enable local tiktoken-based prompt/completion token estimation as a fallback when a provider omits usage (default: true; disable if all configured providers always report usage)
 	StrictAllTeamModelsACL     bool                  `yaml:"strict_all_team_models_acl"`        // Enforce key/team/user model ACLs (default: false)
@@ -729,6 +733,7 @@ func (s *ServerConfig) UnmarshalYAML(value *yaml.Node) error {
 		ModelPricesLink            string                `yaml:"model_prices_link,omitempty"`
 		ModelPricesSyncInterval    string                `yaml:"model_prices_sync_interval"`
 		ShutdownDelay              string                `yaml:"shutdown_delay"`
+		ShutdownTimeout            string                `yaml:"shutdown_timeout"`
 		DrainUpstreamOnAbort       string                `yaml:"drain_upstream_on_abort"`
 		TiktokenEnabled            string                `yaml:"tiktoken_enabled"`
 		StrictAllTeamModelsACL     string                `yaml:"strict_all_team_models_acl"`
@@ -811,6 +816,9 @@ func (s *ServerConfig) UnmarshalYAML(value *yaml.Node) error {
 	}
 
 	if s.ShutdownDelay, err = parseField(temp.ShutdownDelay, 5*time.Second, time.ParseDuration, "shutdown_delay"); err != nil {
+		return err
+	}
+	if s.ShutdownTimeout, err = parseField(temp.ShutdownTimeout, DefaultShutdownTimeout, time.ParseDuration, "shutdown_timeout"); err != nil {
 		return err
 	}
 	if s.DrainUpstreamOnAbort, err = parseField(temp.DrainUpstreamOnAbort, false, strconv.ParseBool, "drain_upstream_on_abort"); err != nil {
@@ -2151,6 +2159,11 @@ func (c *Config) Validate() error {
 	// A non-positive interval would make the ticker panic; fall back to the default.
 	if c.Server.ModelPricesSyncInterval <= 0 {
 		c.Server.ModelPricesSyncInterval = DefaultModelPricesSyncInterval
+	}
+
+	// A non-positive timeout would cut every in-flight request on stop; fall back to the default.
+	if c.Server.ShutdownTimeout <= 0 {
+		c.Server.ShutdownTimeout = DefaultShutdownTimeout
 	}
 
 	// Validate logging level
