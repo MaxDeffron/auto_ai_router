@@ -472,7 +472,8 @@ func main() {
 	}
 
 	// Shutdown HTTP server
-	shutdownOrExit(log, server)
+	log.Info("Waiting for in-flight requests", "timeout", cfg.Server.ShutdownTimeout)
+	shutdownOrExit(log, server, cfg.Server.ShutdownTimeout)
 
 	if pprofServer != nil {
 		pprofCtx, pprofCancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -620,8 +621,8 @@ func bindOrExit(log *slog.Logger, what string, port int) net.Listener {
 // explicitly on both branches instead of deferred, so this function has no
 // defer of its own either — a local `defer cancel()` right next to os.Exit
 // would trip gocritic's exitAfterDefer exactly as before.
-func shutdownOrExit(log *slog.Logger, server *http.Server) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+func shutdownOrExit(log *slog.Logger, server *http.Server, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	err := server.Shutdown(ctx)
 	cancel()
 	if err != nil {
